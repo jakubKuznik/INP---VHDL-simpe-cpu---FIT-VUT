@@ -48,45 +48,33 @@ end cpu;
 -- ----------------------------------------------------------------------------
 architecture behavioral of cpu is
 
- -- Sinnaly
- --****************************************
- --****************************************
- -- Prgoram counter -------------------
+ -- Signaly ##################################
+ -- Prgoram counter ---------
 		signal pc_rom_addres 	: std_logic_vector (11 downto 0);
 		signal pc_inc     		: std_logic;
 		signal pc_dec     		: std_logic;
 		signal pc_clear			: std_logic;
-		--signal pc_load  			: std_logic;
- --------------------------------------
 
-  -- PTR to RAM  -------------------
+  -- PTR to RAM  -------------
 		signal ptr_ram_addres 	 : std_logic_vector (9 downto 0);
 		signal ptr_inc     	    : std_logic;
 		signal ptr_dec     		 : std_logic;
 		signal ptr_clear			 : std_logic;
- --------------------------------------
  
-   -- RAM  -------------------
-		--signal ram_send 	  : std_logic_vector (11 downto 0);
-		signal ram_push     : std_logic;
-		signal ram_pop      : std_logic;
-		
-		
+   -- MULTIPLEXOR -----------	
 		signal mx_switch : std_logic_vector (1 downto 0) := (others => '0');
 		signal mx_out 	  : std_logic_vector (7 downto 0) := (others => '0');
 		
- --****************************************
- --****************************************
+ --###########################################################
  
  
- 
- --- STATES -------------------------
- --****************************************
+ --- STATES ##################################
+
 		type fsm_state is (
 		
-			s_start, 				  -- starts program
-			s_load_instruction,    -- lOADS NEXT INSTRUCTION
-			s_decode,				  -- Parse next command 
+			s_start, 				  -- 	starts program
+			s_load_instruction,    -- 	lOADS NEXT INSTRUCTION
+			s_decode,				  -- 	Parse next command 
 			
 			s_command_ptr_inc, 	  -- >
  			s_command_ptr_dec,	  -- <
@@ -109,30 +97,30 @@ architecture behavioral of cpu is
 			s_command_getchar_3,   -- ,
 			
 			
-			s_command_return,
-			s_not_command,
+			s_command_while_1,     -- [
+			s_command_while_2,     -- [
+
 			
+			s_while_load_previous_instruction, -- Load previous instruction till reach [
+			s_while_load_next_instruction,     -- load next instruction till reach ] 
 			
-			
-			
-			s_command_while_start, -- [
-			s_command_while_end,   -- ]
+			s_command_while_end_1, -- ]
 			s_command_break,  	  -- ~
-			s_command_while_check,
-			s_command_while_loop,
-			s_command_while_en,
 			
-			
-			
-			s_command_null -- null
-			
+			s_command_return,      -- end of program 
+			s_not_command,			  -- not valid command just skip 
+		
+			s_command_null 		  -- null
 			);
 			signal state : fsm_state := s_start;
 			signal next_state : fsm_state;
---****************************************
+-- #################################################
+
+
+
+
 
 begin
-
 --########## PTR ###################################################
 		ptr: process (CLK, RESET, ptr_inc, ptr_dec, ptr_clear) is 
 		begin 	
@@ -211,20 +199,16 @@ begin
 -- ########### FSM LOGIC #############################################
 		fsm: process (state, OUT_BUSY, IN_VLD, CODE_DATA, DATA_RDATA) is
 		begin
-			---inicializace 
+			---inicializace ----------- 
 			-- PC
 			pc_inc 	<= '0';
 			pc_dec 	<= '0';
 			pc_clear <= '0';
-			ram_pop 	<= '0';
-			ram_push <= '0';
-				--pc_ld 	<= '0';
 			-- PTR 
 			ptr_inc 	 <= '0';
 			ptr_dec 	 <= '0';
 			ptr_clear <= '0';
 			-- I/O
-			--OUT_DATA <= "00000000";
 			IN_REQ 	<= '0';
 			-- ROM 
 			CODE_EN 		<= '0';
@@ -233,35 +217,31 @@ begin
 			DATA_EN 		<= '0';
 			DATA_WREN 	<= '0';
 			-- MUX
-			mx_switch 	<= "00";
-			--mx_out 		<= "00000000";
+			mx_switch 	<= "00";			
+			---------------------------
 			
-						
-			-- DEFINUJU CO SE MA DELAT PODLE PSEUDO KODU 
 			case state is
-			-- Vychozi stav - clear all registers
+
+					-- clear all registers - default state 
 					when s_start =>
 						ptr_clear <= '1';
 						pc_clear  <= '1';
 						--todo cnt_clear <= '1';
-						next_state 	  <= s_load_instruction;
-								
+						next_state 	  <= s_load_instruction;	
+					
 					when s_load_instruction =>
 						CODE_EN <= '1';  
-						next_state <= s_decode;
-					
+						next_state <= s_decode;	
 					
 					when s_command_ptr_inc =>	  -- +
 						ptr_inc    <= '1';
 						pc_inc 	  <= '1';
 						next_state <= s_load_instruction;
 					
-					
 					when s_command_ptr_dec =>	  -- -
 						ptr_dec    <= '1';
 						pc_inc 	  <= '1';
 						next_state <= s_load_instruction;
-			
 			
 					when s_command_val_inc_1 => 	  -- >
 						DATA_EN 		<= '1';
@@ -274,27 +254,24 @@ begin
 						DATA_EN 		<= '1';
 						DATA_WREN   <= '1';
 						pc_inc 		<= '1';
-						next_state  <= s_load_instruction;
-						
+						next_state  <= s_load_instruction;					
 						
 					when s_command_val_dec_1 => -- <
 						DATA_EN 		<= '1';
 						DATA_WREN 	<= '0';
-						next_state <= s_command_val_dec_2;
+						next_state 	<= s_command_val_dec_2;
 					when s_command_val_dec_2 => -- <
 						mx_switch   <= "11";
-						next_state <= s_command_val_dec_3;
+						next_state 	<= s_command_val_dec_3;
 					when s_command_val_dec_3 => -- <
 						DATA_EN 		<= '1';
 						DATA_WREN 	<= '1';
 						pc_inc 		<= '1';
-						next_state <= s_load_instruction;
-
-
+						next_state 	<= s_load_instruction;
 
 					when s_command_putchar_1 => -- ,
 						if OUT_BUSY = '0' then
-							DATA_EN <= '1';
+							DATA_EN 	  <= '1';
 							next_state <= s_command_putchar_2;
 						else
 							next_state <= s_command_putchar_1;
@@ -302,19 +279,18 @@ begin
 					when s_command_putchar_2 => -- ,
 						next_state <= s_command_putchar_3;
 					when s_command_putchar_3 => -- ,
-						OUT_DATA <= DATA_RDATA;
-						OUT_WREN <= '1';
-						pc_inc   <= '1';
+						OUT_DATA   <= DATA_RDATA;
+						OUT_WREN   <= '1';
+						pc_inc     <= '1';
 						next_state <= s_load_instruction;
-						
-							
+												
 					when s_command_getchar_1 =>  -- ,
-						IN_REQ 	  <= '1';
-						mx_switch  <= "00";		  -- send input data to output 
-						next_state <= s_command_getchar_2;		
+						IN_REQ 	 	 <= '1';
+						mx_switch    <= "00";		  -- send input data to output 
+						next_state   <= s_command_getchar_2;		
 					when s_command_getchar_2 =>
 						if IN_VLD /= '1' then 
-							IN_REQ <= '1';
+							IN_REQ     <= '1';
 							mx_switch  <= "00";		  -- send input data to output 
 							next_state <= s_command_getchar_2;
 						else
@@ -325,32 +301,74 @@ begin
 						DATA_WREN  <= '1';
 						pc_inc 	  <= '1';
 						next_state <= s_load_instruction;
+						
+									
+					when s_command_while_1 => -- [
+						pc_inc 		<= '1';
+						DATA_EN 		<= '1';
+						DATA_WREN 	<= '0';
+						next_state 	<= s_command_while_2;			
+					when s_command_while_2 =>
+						if DATA_RDATA = "00000000" then
+							CODE_EN <= '1';
+							next_state <= s_command_break;
+						else
+							next_state <= s_load_instruction;
+						end if;
 					
-								
+					when s_command_while_end_1 =>   -- ]
+						if DATA_RDATA /= "00000000" then -- nots nul 
+							if CODE_DATA = X"5B" then
+								next_state <= s_load_instruction;
+							else						
+								pc_dec 	  <= '1'; -- jump to[ 
+								next_state <= s_while_load_previous_instruction;
+							end if;
+						else 
+							pc_inc <= '1';
+							next_state <= s_load_instruction;
+						end if;	
+					
+					when s_command_break	=>         -- ,
+						if CODE_DATA = X"5D" then  -- end of loop 
+							next_state <= s_load_instruction;
+						else 
+							next_state <= s_while_load_next_instruction;
+						end if;
+					
+					when s_while_load_previous_instruction => 
+						CODE_EN 	  <= '1';  
+						next_state <= s_command_while_end_1;
+					
+					when s_while_load_next_instruction =>
+						pc_inc <= '1';
+						CODE_EN <= '1';
+						next_state <= s_command_break;
+						
 					when s_decode =>
 						case CODE_DATA is
-							when X"3E" => -- >
-								next_state <= s_command_ptr_inc; -- ptr += 1;
-							when X"3C" => -- <
-								next_state <= s_command_ptr_dec; -- ptr -= 1;								
-							when X"2B" => -- +
-								next_state <= s_command_val_inc_1; -- *ptr += 1;
-							when X"2D" => -- -
-								next_state <= s_command_val_dec_1;	-- *ptr -= 1;	
-	--						when X"5B" => -- [
-	--							next_state <= s_command_while_start; -- while (*ptr) {
-	--						when X"5D" => -- ]
-	--							next_state <= s_command_while_end;	 -- }
-							when X"2E" => -- .
-								next_state <= s_command_putchar_1;     -- puchar(*ptr);
-							when X"2C" => -- ,
-								next_state <= s_command_getchar_1;		 -- *ptr = getchar();
-	--						when X"7E" => -- ~
-	--							next_state <= s_command_break;       	-- break
-							when X"00" => -- null
-								next_state <= s_command_return;        -- return;
-							when others => 	-- if non of coomands go to next 
-								next_state <= s_not_command;
+							when X"3E" => 			-- >
+								next_state <= s_command_ptr_inc;		 -- ptr += 1;
+							when X"3C" => 			-- <
+								next_state <= s_command_ptr_dec; 	 -- ptr -= 1;								
+							when X"2B" => 			-- +
+								next_state <= s_command_val_inc_1; 	 -- *ptr += 1;
+							when X"2D" => 			-- -
+								next_state <= s_command_val_dec_1;	 -- *ptr -= 1;	
+							when X"5B" => 			-- [
+								next_state <= s_command_while_1;     -- while (*ptr) {
+							when X"5D" => 			-- ]
+								next_state <= s_command_while_end_1; -- }
+							when X"2E" => 			-- .
+								next_state <= s_command_putchar_1;   -- puchar(*ptr);
+							when X"2C" => 			-- ,
+								next_state <= s_command_getchar_1;   -- *ptr = getchar();
+							when X"7E" => 			-- ~
+								next_state <= s_command_break;       -- break
+							when X"00" => 			-- null
+								next_state <= s_command_return;      -- return;
+							when others => 								 
+								next_state <= s_not_command;         -- if non of comands go to next 
 						end case;	
 						
 						when s_command_return =>
@@ -366,47 +384,5 @@ begin
 				
 				end case;		
 		end process;
--- ##########################################################################################
-	
-				
-	--					
-	--			when s_command_while_start => -- [
-	--				pc_inc <= '1';
-	--				DATA_EN <= '1';
-	--				DATA_WREN <= '0';
-	--				next_state <= s_command_while_check;
-	--			
-	--			when s_command_while_check =>
-	--				if DATA_RDATA /= "00000000" then
-	--					next_state <= s_fetch;
-	--				else
-	--					CODE_EN <= '1';
-	--					next_state <= s_command_while_loop;
-	--				end if;
-	--			
-	--			when s_command_while_loop =>
-	--				if CODE_DATA = X"5D" then 
-	--					next_state <= s_fetch;
-	--				else 
-	--					next_state <= s_command_while_en;
-	--				end if;
-					----
-	--			when s_command_while_en =>
-	--				DATA_EN <= '1';
-	--				next_state <= s_command_while_loop;
-					
-					
-	--			when s_command_while_end =>   -- ]
-	--				if DATA_RDATA = "00000000" then -- neni nul 
-					--	pc_ld <= '1';
-	--					next_state <= s_fetch;
-	--				else 
-	--					pc_inc <= '1';
-	--					ram_pop <= '1';
-	--					next_state <= s_fetch;
-	--				end if;
-	--			
-								
-
+-- ##########################################################################################					
 end behavioral;
- 
